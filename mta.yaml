@@ -1,0 +1,86 @@
+_schema-version: 3.3.0
+ID: smart-cookbook
+version: 1.0.0
+description: "A simple CAP project."
+parameters:
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
+modules:
+  - name: smart-cookbook-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+    build-parameters:
+      builder: npm-ci
+    provides:
+      - name: srv-api # required by consumers of CAP services (e.g. approuter)
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: smart-cookbook-auth
+      - name: smart-cookbook-postgres
+      - name: smart-cookbook-connectivity
+      - name: smart-cookbook-destination
+
+  - name: smart-cookbook-postgres-deployer
+    type: nodejs
+    path: gen/pg
+    parameters:
+      buildpack: nodejs_buildpack
+      no-route: true
+      no-start: true
+      tasks:
+        - name: deploy-to-postgresql
+          command: npm start
+    requires:
+      - name: smart-cookbook-postgres
+
+resources:
+  - name: smart-cookbook-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: smart-cookbook-${org}-${space}
+        tenant-mode: dedicated
+        oauth2-configuration:
+          credential-types:
+            - "binding-secret"
+            - "x509"
+        role-collections:
+          - name: 'recipesAccess (smart-cookbook ${org}-${space})'
+            description: 'generated'
+            role-template-references:
+              - '$XSAPPNAME.recipesAccess'
+          - name: 'onlyUpdate (smart-cookbook ${org}-${space})'
+            description: 'generated'
+            role-template-references:
+              - '$XSAPPNAME.onlyUpdate'
+          - name: 'callMethodsOnCourses (smart-cookbook ${org}-${space})'
+            description: 'generated'
+            role-template-references:
+              - '$XSAPPNAME.callMethodsOnCourses'
+  - name: smart-cookbook-postgres
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: postgresql-db
+      service-plan: trial
+  - name: smart-cookbook-connectivity
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: connectivity
+      service-plan: lite
+  - name: smart-cookbook-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite

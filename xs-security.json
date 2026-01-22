@@ -1,0 +1,43 @@
+{
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.recipesAccess",
+      "description": "recipesAccess"
+    },
+    {
+      "name": "$XSAPPNAME.onlyUpdate",
+      "description": "onlyUpdate"
+    },
+    {
+      "name": "$XSAPPNAME.callMethodsOnCourses",
+      "description": "callMethodsOnCourses"
+    }
+  ],
+  "attributes": [],
+  "role-templates": [
+    {
+      "name": "recipesAccess",
+      "description": "generated",
+      "scope-references": [
+        "$XSAPPNAME.recipesAccess"
+      ],
+      "attribute-references": []
+    },
+    {
+      "name": "onlyUpdate",
+      "description": "generated",
+      "scope-references": [
+        "$XSAPPNAME.onlyUpdate"
+      ],
+      "attribute-references": []
+    },
+    {
+      "name": "callMethodsOnCourses",
+      "description": "generated",
+      "scope-references": [
+        "$XSAPPNAME.callMethodsOnCourses"
+      ],
+      "attribute-references": []
+    }
+  ]
+}

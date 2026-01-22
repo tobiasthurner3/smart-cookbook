@@ -1,0 +1,55 @@
+{
+  "name": "smart-cookbook",
+  "version": "1.0.0",
+  "description": "A simple CAP project.",
+  "dependencies": {
+    "@sap/cds": "^9",
+    "express": "^4",
+    "@sap-cloud-sdk/connectivity": "^4",
+    "@sap-cloud-sdk/http-client": "^4",
+    "@sap-cloud-sdk/resilience": "^4",
+    "@cap-js/postgres": "^2",
+    "@sap/xssec": "^4"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^2",
+    "@sap/cds-dk": "^9"
+  },
+  "scripts": {
+    "start": "cds-serve"
+  },
+  "private": true,
+  "cds": {
+    "requires": {
+      "[development]": {
+        "auth": {
+          "kind": "mocked",
+          "users": {
+            "Admin": {
+              "roles": [
+                "recipesAccess",
+                "onlyUpdate",
+                "callMethodsOnCourses"
+              ]
+            }
+          }
+        }
+      },
+      "Northwind": {
+        "kind": "odata",
+        "model": "srv/external/Northwind",
+        "[production]": {
+          "credentials": {
+            "url": "https://services.odata.org/Experimental/OData/OData.svc",
+            "destination": "Northwind"
+          }
+        }
+      },
+      "connectivity": true,
+      "destinations": true,
+      "[production]": {
+        "auth": "xsuaa"
+      }
+    }
+  }
+}
