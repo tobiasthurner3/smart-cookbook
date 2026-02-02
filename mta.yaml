@@ -25,22 +25,66 @@ modules:
           srv-url: ${default-url}
     requires:
       - name: smart-cookbook-auth
-      - name: smart-cookbook-postgres
-      - name: smart-cookbook-connectivity
-      - name: smart-cookbook-destination
+      - name: smart-cookbook-db
 
-  - name: smart-cookbook-postgres-deployer
+  - name: smart-cookbook-mtx
     type: nodejs
-    path: gen/pg
-    parameters:
-      buildpack: nodejs_buildpack
-      no-route: true
-      no-start: true
-      tasks:
-        - name: deploy-to-postgresql
-          command: npm start
+    path: gen/mtx/sidecar
     requires:
-      - name: smart-cookbook-postgres
+      - name: smart-cookbook-auth
+      - name: smart-cookbook-db
+      - name: smart-cookbook-registry
+      - name: app-api
+        properties:
+          SUBSCRIPTION_URL: ~{app-protocol}://\${tenant_subdomain}-~{app-uri}
+    build-parameters:
+      builder: npm-ci
+    parameters:
+      instances: 1
+      memory: 256M
+      disk-quota: 512M
+    hooks:
+      - name: upgrade-all
+        type: task
+        phases:
+          - blue-green.application.before-start.idle
+          - deploy.application.before-start
+        parameters:
+          name: upgrade
+          memory: 512M # increase as required
+          disk-quota: 768M # increase as required
+          command: cds-mtx upgrade '*'
+    provides:
+      - name: mtx-api
+        properties:
+          mtx-url: ${default-url}
+  - name: smart-cookbook
+    type: approuter.nodejs
+    path: app/router
+    parameters:
+      keep-existing-routes: true
+      disk-quota: 256M
+      memory: 256M
+    properties:
+      TENANT_HOST_PATTERN: "^(.*)-${default-uri}"
+    requires:
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api # must be used in xs-app.json as well
+          url: ~{srv-url}
+          forwardAuthToken: true
+      - name: mtx-api
+        group: destinations
+        properties:
+          name: mtx-api # must be used in xs-app.json as well
+          url: ~{mtx-url}
+      - name: smart-cookbook-auth
+    provides:
+      - name: app-api
+        properties:
+          app-protocol: ${protocol}
+          app-uri: ${default-uri}
 
 resources:
   - name: smart-cookbook-auth
@@ -51,11 +95,13 @@ resources:
       path: ./xs-security.json
       config:
         xsappname: smart-cookbook-${org}-${space}
-        tenant-mode: dedicated
+        tenant-mode: shared
         oauth2-configuration:
           credential-types:
             - "binding-secret"
             - "x509"
+          redirect-uris:
+            - https://*~{app-api/app-uri}/**
         role-collections:
           - name: 'recipesAccess (smart-cookbook ${org}-${space})'
             description: 'generated'
@@ -69,18 +115,30 @@ resources:
             description: 'generated'
             role-template-references:
               - '$XSAPPNAME.callMethodsOnCourses'
-  - name: smart-cookbook-postgres
+    requires:
+      - name: app-api
+  - name: smart-cookbook-db
     type: org.cloudfoundry.managed-service
     parameters:
-      service: postgresql-db
-      service-plan: trial
-  - name: smart-cookbook-connectivity
+      service: service-manager
+      service-plan: container
+  - name: smart-cookbook-registry
     type: org.cloudfoundry.managed-service
+    requires:
+      - name: mtx-api
     parameters:
-      service: connectivity
-      service-plan: lite
-  - name: smart-cookbook-destination
-    type: org.cloudfoundry.managed-service
-    parameters:
-      service: destination
-      service-plan: lite
+      service: saas-registry
+      service-plan: application
+      config:
+        xsappname: smart-cookbook-${org}-${space}
+        appName: smart-cookbook-${org}-${space}
+        displayName: smart-cookbook
+        description: A simple CAP project.
+        category: 'Category'
+        appUrls:
+          getDependencies: ~{mtx-api/mtx-url}/-/cds/saas-provisioning/dependencies
+          onSubscription: ~{mtx-api/mtx-url}/-/cds/saas-provisioning/tenant/{tenantId}
+          onSubscriptionAsync: true
+          onUnSubscriptionAsync: true
+          onUpdateDependenciesAsync: true
+          callbackTimeoutMillis: 300000 # Increase if your deployments are taking longer than that
